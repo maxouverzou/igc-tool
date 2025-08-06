@@ -1,0 +1,9 @@
+.direnv
+result
+
+igc-tool
+coverage.html
+coverage.out
+
+*.igc
+*.csv
