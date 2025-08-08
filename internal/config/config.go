@@ -74,7 +74,7 @@ func setDefaults() {
 	viper.SetDefault("time-format", units.TimeFormat24h)
 	viper.SetDefault("speed-unit", units.SpeedKmh)
 	viper.SetDefault("climb-unit", units.ClimbMs)
-	defaultTemplate := "{{.Date}} {{.TakeoffSite}} {{.TakeoffAlt}}{{.AltitudeUnit}} {{.AltitudeDiff}}{{.AltitudeUnit}} {{.FlightDuration}} {{.MaxAltitude}}{{.AltitudeUnit}} {{.MaxGroundSpeed}}{{.SpeedUnit}} +{{.MaxClimbRate}}{{.VerticalSpeedUnit}} -{{.MaxDescentRate}}{{.VerticalSpeedUnit}}\n"
+	defaultTemplate := "{{range .Flights}}{{.Date}} {{.TakeoffSite}} {{.TakeoffAlt}}{{.AltitudeUnit}} {{.AltitudeDiff}}{{.AltitudeUnit}} {{.FlightDuration}} {{.MaxAltitude}}{{.AltitudeUnit}} {{.MaxGroundSpeed}}{{.SpeedUnit}} +{{.MaxClimbRate}}{{.VerticalSpeedUnit}} -{{.MaxDescentRate}}{{.VerticalSpeedUnit}}\n{{end}}{{if gt .TotalFlights 1}}# total flight time: {{.TotalTime}}\n{{end}}"
 	viper.SetDefault("logbook-format", defaultTemplate)
 	viper.SetDefault("sites-database-location", "")
 	viper.SetDefault("speed-window", 5.0)

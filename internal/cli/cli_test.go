@@ -122,100 +122,6 @@ func TestFindIGCFiles(t *testing.T) {
 	}
 }
 
-func TestPrintTemplatedLogbook(t *testing.T) {
-	// Test data
-	testData := &logbook.Data{
-		Date:              "2025-07-18",
-		TakeoffSite:       "TestSite",
-		TakeoffAlt:        1500,
-		AltitudeDiff:      300,
-		FlightDuration:    "2h30m",
-		MaxAltitude:       1800,
-		MaxGroundSpeed:    85,
-		MaxClimbRate:      8.5,
-		MaxDescentRate:    12.3,
-		Pilot:             "TestPilot",
-		AltitudeUnit:      "m",
-		SpeedUnit:         "km/h",
-		VerticalSpeedUnit: "m/s",
-	}
-
-	tests := []struct {
-		name         string
-		data         *logbook.Data
-		template     string
-		expectError  bool
-		expectOutput bool
-	}{
-		{
-			name:         "valid template",
-			data:         testData,
-			template:     "{{.Date}} {{.Pilot}} {{.TakeoffSite}}",
-			expectError:  false,
-			expectOutput: true,
-		},
-		{
-			name:         "template with units",
-			data:         testData,
-			template:     "{{.MaxAltitude}}{{.AltitudeUnit}} {{.MaxGroundSpeed}}{{.SpeedUnit}}",
-			expectError:  false,
-			expectOutput: true,
-		},
-		{
-			name:         "invalid template syntax",
-			data:         testData,
-			template:     "{{.InvalidField",
-			expectError:  true,
-			expectOutput: false,
-		},
-		{
-			name:         "template with invalid field",
-			data:         testData,
-			template:     "{{.NonExistentField}}",
-			expectError:  true,
-			expectOutput: false,
-		},
-		{
-			name:         "nil data",
-			data:         nil,
-			template:     "{{.Date}}",
-			expectError:  false,
-			expectOutput: true, // Should print message about no data
-		},
-		{
-			name:         "empty template",
-			data:         testData,
-			template:     "",
-			expectError:  false,
-			expectOutput: false,
-		},
-		{
-			name:         "template with newline",
-			data:         testData,
-			template:     "{{.Date}}\n",
-			expectError:  false,
-			expectOutput: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := PrintTemplatedLogbook(tt.data, tt.template)
-
-			if tt.expectError {
-				if err == nil {
-					t.Errorf("expected error but got none")
-				}
-				return
-			}
-
-			if err != nil {
-				t.Errorf("unexpected error: %v", err)
-			}
-		})
-	}
-}
-
 func TestLoadLandingSitesIfSpecified(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -291,6 +197,173 @@ func TestLoadLandingSitesIfSpecified(t *testing.T) {
 
 			if !tt.expectSites && sites != nil {
 				t.Errorf("expected nil sites collection but got %v", sites)
+			}
+		})
+	}
+}
+
+func TestPrintTemplatedLogbookData(t *testing.T) {
+	tests := []struct {
+		name        string
+		data        *logbook.TemplateData
+		templateStr string
+		expectError bool
+		expectedOut string
+	}{
+		{
+			name:        "nil data",
+			data:        nil,
+			templateStr: "{{.TotalFlights}}",
+			expectError: false,
+			expectedOut: "No flight data available for logbook entry\n",
+		},
+		{
+			name: "valid template with single flight",
+			data: &logbook.TemplateData{
+				TotalFlights: 1,
+				TotalTime:    "2h30m",
+				FirstDate:    "2023-06-15",
+				LastDate:     "2023-06-15",
+				Flights: []*logbook.Data{
+					{
+						Date:           "2023-06-15",
+						Pilot:          "Test Pilot",
+						GliderType:     "Test Glider",
+						FlightDuration: "2h30m",
+						MaxAltitude:    1500,
+						AltitudeUnit:   "m",
+					},
+				},
+			},
+			templateStr: "Total: {{.TotalFlights}} flights, {{.TotalTime}}",
+			expectError: false,
+			expectedOut: "Total: 1 flights, 2h30m",
+		},
+		{
+			name: "template with flight details",
+			data: &logbook.TemplateData{
+				TotalFlights: 1,
+				Flights: []*logbook.Data{
+					{
+						Date:           "2023-06-15",
+						Pilot:          "John Doe",
+						GliderType:     "Paraglider Alpha",
+						FlightDuration: "1h45m",
+						MaxAltitude:    1200,
+						TakeoffSite:    "Mountain Peak",
+						LandingSite:    "Valley Floor",
+						AltitudeUnit:   "m",
+						SpeedUnit:      "km/h",
+					},
+				},
+			},
+			templateStr: "{{range .Flights}}Date: {{.Date}}, Pilot: {{.Pilot}}, Duration: {{.FlightDuration}}{{end}}",
+			expectError: false,
+			expectedOut: "Date: 2023-06-15, Pilot: John Doe, Duration: 1h45m",
+		},
+		{
+			name: "template with aggregated statistics",
+			data: &logbook.TemplateData{
+				TotalFlights:   3,
+				TotalTime:      "6h15m",
+				FirstDate:      "2023-06-01",
+				LastDate:       "2023-06-15",
+				MaxAltitude:    1800,
+				AvgMaxAltitude: 1500,
+				UniquePilots:   []string{"John Doe", "Jane Smith"},
+				UniqueGliders:  []string{"Paraglider Alpha", "Paraglider Beta"},
+				UniqueSites:    []string{"Mountain Peak", "Hill Top"},
+				AltitudeUnit:   "m",
+			},
+			templateStr: "Flights: {{.TotalFlights}}, Time: {{.TotalTime}}, Pilots: {{len .UniquePilots}}, Max Alt: {{.MaxAltitude}}{{.AltitudeUnit}}",
+			expectError: false,
+			expectedOut: "Flights: 3, Time: 6h15m, Pilots: 2, Max Alt: 1800m",
+		},
+		{
+			name: "empty template data",
+			data: &logbook.TemplateData{
+				TotalFlights: 0,
+				Flights:      []*logbook.Data{},
+			},
+			templateStr: "{{.TotalFlights}} flights found",
+			expectError: false,
+			expectedOut: "0 flights found",
+		},
+		{
+			name:        "invalid template syntax",
+			data:        &logbook.TemplateData{TotalFlights: 1},
+			templateStr: "{{.TotalFlights",
+			expectError: true,
+			expectedOut: "",
+		},
+		{
+			name:        "template with non-existent field",
+			data:        &logbook.TemplateData{TotalFlights: 1},
+			templateStr: "{{.NonExistentField}}",
+			expectError: true,
+			expectedOut: "",
+		},
+		{
+			name: "complex template with conditionals",
+			data: &logbook.TemplateData{
+				TotalFlights: 2,
+				Flights: []*logbook.Data{
+					{Date: "2023-06-01", Pilot: "John"},
+					{Date: "2023-06-02", Pilot: "Jane"},
+				},
+			},
+			templateStr: "{{if gt .TotalFlights 1}}Multiple flights: {{.TotalFlights}}{{else}}Single flight{{end}}",
+			expectError: false,
+			expectedOut: "Multiple flights: 2",
+		},
+		{
+			name: "template with range and index",
+			data: &logbook.TemplateData{
+				Flights: []*logbook.Data{
+					{Date: "2023-06-01", Pilot: "Alice"},
+					{Date: "2023-06-02", Pilot: "Bob"},
+				},
+			},
+			templateStr: "{{range $i, $flight := .Flights}}{{$i}}: {{$flight.Pilot}} {{end}}",
+			expectError: false,
+			expectedOut: "0: Alice 1: Bob ",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Capture stdout
+			oldStdout := os.Stdout
+			r, w, _ := os.Pipe()
+			os.Stdout = w
+
+			// Execute the function
+			err := PrintTemplatedLogbookData(tt.data, tt.templateStr)
+
+			// Restore stdout and get output
+			w.Close()
+			os.Stdout = oldStdout
+
+			output := make([]byte, 1024)
+			n, _ := r.Read(output)
+			actualOut := string(output[:n])
+
+			// Check error expectation
+			if tt.expectError {
+				if err == nil {
+					t.Errorf("expected error but got none")
+				}
+				return
+			}
+
+			if err != nil {
+				t.Errorf("unexpected error: %v", err)
+				return
+			}
+
+			// Check output
+			if actualOut != tt.expectedOut {
+				t.Errorf("expected output %q, got %q", tt.expectedOut, actualOut)
 			}
 		})
 	}

@@ -62,8 +62,8 @@ func FindIGCFiles(paths []string, recursive bool) ([]string, error) {
 	return igcFiles, nil
 }
 
-// PrintTemplatedLogbook prints logbook output using the provided template
-func PrintTemplatedLogbook(data *logbook.Data, templateStr string) error {
+// PrintTemplatedLogbookData prints logbook output using the provided template with TemplateData
+func PrintTemplatedLogbookData(data *logbook.TemplateData, templateStr string) error {
 	if data == nil {
 		fmt.Println("No flight data available for logbook entry")
 		return nil
@@ -77,11 +77,6 @@ func PrintTemplatedLogbook(data *logbook.Data, templateStr string) error {
 	err = tmpl.Execute(os.Stdout, data)
 	if err != nil {
 		return fmt.Errorf("failed to execute template: %w", err)
-	}
-
-	// Ensure output always ends with a newline
-	if !strings.HasSuffix(templateStr, "\n") {
-		fmt.Print("\n")
 	}
 
 	return nil

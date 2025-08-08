@@ -4,14 +4,12 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"time"
 
 	"igc-tool/internal/cli"
 	"igc-tool/internal/config"
 	"igc-tool/internal/flags"
 	"igc-tool/internal/logbook"
 	"igc-tool/internal/parser"
-	"igc-tool/internal/utils"
 
 	"github.com/spf13/cobra"
 )
@@ -21,8 +19,34 @@ func NewLogbookCmd(cfg *config.Config, flagConfig *flags.FlagConfig) *cobra.Comm
 	var logbookCmd = &cobra.Command{
 		Use:   "logbook [IGC files or directories...]",
 		Short: "Generate logbook entries for flights",
-		Long:  fmt.Sprintf("Generate logbook entries for flights. Accepts multiple IGC files and/or directories containing IGC files. Use --format to customize output with Go templates.\n\nAvailable template fields: %s", strings.Join(logbook.GetDataFields(), ", ")),
-		Args:  cobra.MinimumNArgs(1),
+		Long: fmt.Sprintf(`Generate logbook entries for flights. Accepts multiple IGC files and/or directories containing IGC files.
+
+Template Variables (always available):
+  Individual flight fields (access via .Flights array): %s
+  
+  Aggregated statistics: %s
+
+Examples:
+  # Basic usage (single flight)
+  igc-tool logbook flight1.igc
+  
+  # Basic usage (multiple flights)
+  igc-tool logbook flight1.igc flight2.igc
+  
+  # Custom format for individual flights
+  igc-tool logbook --format "{{range .Flights}}{{.Date}}: {{.FlightDuration}} at {{.TakeoffSite}}\n{{end}}" *.igc
+  
+  # Access aggregated data in templates
+  igc-tool logbook --format "{{range .Flights}}{{.Date}} {{.FlightDuration}}\n{{end}}Total: {{.TotalTime}}" *.igc
+  
+  # Show only summary statistics
+  igc-tool logbook --format "Summary: {{.TotalFlights}} flights, {{.TotalTime}} total time\n" *.igc
+  
+  # Mix individual and aggregated data
+  igc-tool logbook --format "Flights:\n{{range .Flights}}- {{.Date}}: {{.FlightDuration}}\n{{end}}Total time: {{.TotalTime}}\n" *.igc`,
+			strings.Join(logbook.GetDataFields(), ", "),
+			strings.Join(logbook.GetTemplateDataFields(), ", ")),
+		Args: cobra.MinimumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			logbookFlags := flagConfig.GetLogbookFromConfig(cmd, cfg)
 			commonFlags := flagConfig.GetCommonFromConfig(cmd, cfg)
@@ -46,8 +70,8 @@ func NewLogbookCmd(cfg *config.Config, flagConfig *flags.FlagConfig) *cobra.Comm
 				os.Exit(1)
 			}
 
-			// Track total flight time for multiple files
-			var totalFlightTime time.Duration
+			// Collect all flight data
+			var allFlights []*logbook.Data
 			processedCount := 0
 
 			// Process each IGC file
@@ -69,24 +93,31 @@ func NewLogbookCmd(cfg *config.Config, flagConfig *flags.FlagConfig) *cobra.Comm
 					TimeFormat:   commonFlags.TimeFormat,
 				}
 				data := logbook.CreateData(flight, opts)
-
-				err = cli.PrintTemplatedLogbook(data, logbookFlags.Format)
-				if err != nil {
-					fmt.Fprintf(os.Stderr, "Error processing %s: %v\n", filename, err)
-					continue
-				}
-
-				// Add flight duration to total if we have fixes
-				if len(flight.Fixes) > 0 {
-					flightDuration := flight.Fixes[len(flight.Fixes)-1].Time.Sub(flight.Fixes[0].Time)
-					totalFlightTime += flightDuration
+				if data != nil {
+					allFlights = append(allFlights, data)
 					processedCount++
 				}
 			}
 
-			// Print total flight time if more than one file was processed
-			if processedCount > 1 {
-				fmt.Printf("# total flight time: %s\n", utils.FormatDuration(totalFlightTime))
+			if processedCount == 0 {
+				fmt.Fprintf(os.Stderr, "No valid flights found\n")
+				os.Exit(1)
+			}
+
+			// Always use TemplateData for consistent template variables
+			templateData := logbook.CreateTemplateData(allFlights, logbook.Options{
+				AltitudeUnit: commonFlags.AltitudeUnit,
+				SpeedUnit:    logbookFlags.SpeedUnit,
+				ClimbUnit:    logbookFlags.ClimbUnit,
+			})
+
+			// Use the template as-is - no automatic wrapping
+			templateStr := logbookFlags.Format
+
+			err = cli.PrintTemplatedLogbookData(templateData, templateStr)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Error rendering template: %v\n", err)
+				os.Exit(1)
 			}
 		},
 	}
