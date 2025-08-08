@@ -33,6 +33,13 @@ type VersionFlags struct {
 	Detailed bool
 }
 
+// RenderFlags defines flags specific to the render command
+type RenderFlags struct {
+	Pretty          bool
+	IncludeMetadata bool
+	Output          string
+}
+
 // GlobalFlags defines global flags
 type GlobalFlags struct {
 	Version bool
@@ -120,6 +127,13 @@ func (fc *FlagConfig) AddVersionFlags(cmd *cobra.Command) {
 	cmd.Flags().BoolP("detailed", "d", false, "Show detailed version information including build details")
 }
 
+// AddRenderFlags adds render-specific flags to a command
+func (fc *FlagConfig) AddRenderFlags(cmd *cobra.Command) {
+	cmd.Flags().BoolP("pretty", "p", false, "Pretty-print the GeoJSON output")
+	cmd.Flags().BoolP("include-metadata", "m", false, "Include flight metadata in GeoJSON properties")
+	cmd.Flags().StringP("output", "o", "", "Output file path (default: stdout)")
+}
+
 // AddGlobalFlags adds global flags to a command
 func (fc *FlagConfig) AddGlobalFlags(cmd *cobra.Command) {
 	cmd.PersistentFlags().BoolP("version", "v", false, "Show version information")
@@ -139,6 +153,16 @@ func (fc *FlagConfig) GetParseFromFlags(cmd *cobra.Command) ParseFlags {
 	resolver := fc.NewResolver(cmd)
 	return ParseFlags{
 		Summary: resolver.getBool("summary", false),
+	}
+}
+
+// GetRenderFromFlags retrieves render flag values from cobra command
+func (fc *FlagConfig) GetRenderFromFlags(cmd *cobra.Command) RenderFlags {
+	resolver := fc.NewResolver(cmd)
+	return RenderFlags{
+		Pretty:          resolver.getBool("pretty", false),
+		IncludeMetadata: resolver.getBool("include-metadata", false),
+		Output:          resolver.getString("output", ""),
 	}
 }
 

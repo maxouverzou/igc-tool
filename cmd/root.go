@@ -34,6 +34,7 @@ func NewRootCmd(cfg *config.Config, flagConfig *flags.FlagConfig) *cobra.Command
 	// Add subcommands
 	rootCmd.AddCommand(NewParseCmd(cfg, flagConfig))
 	rootCmd.AddCommand(NewLogbookCmd(cfg, flagConfig))
+	rootCmd.AddCommand(NewGeoJSONCmd(cfg, flagConfig))
 	rootCmd.AddCommand(NewConfigCmd(cfg, flagConfig))
 	rootCmd.AddCommand(NewVersionCmd(cfg, flagConfig))
 
